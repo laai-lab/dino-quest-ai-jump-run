@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dino Quest: AI Jump Run</title>
+    <link rel="stylesheet" href="css/styles.css?v=20260704b">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">DQ</span>
+          <div>
+            <h1>Dino Quest</h1>
+            <p>AI Jump Run</p>
+          </div>
+        </div>
+        <div class="hud" id="hud">
+          <div class="meter">
+            <span>Health</span>
+            <strong id="healthText">100</strong>
+            <div class="bar"><i id="healthBar"></i></div>
+          </div>
+          <div class="stat"><span>XP</span><strong id="xpText">0</strong></div>
+          <div class="stat"><span>Coins</span><strong id="coinsText">0</strong></div>
+          <div class="stat"><span>Score</span><strong id="scoreText">0</strong></div>
+          <div class="stat"><span>Level</span><strong id="levelText">1</strong></div>
+        </div>
+        <div class="toolbar">
+          <button id="saveBtn" type="button">Save</button>
+          <button id="loadBtn" type="button">Load</button>
+          <button id="muteBtn" type="button" aria-pressed="false">Sound</button>
+        </div>
+      </header>
+
+      <main class="game-frame">
+        <canvas id="gameCanvas" width="960" height="640" aria-label="Dino Quest AI jumping game canvas"></canvas>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+        <section class="panel screen is-visible" id="startScreen">
+          <div class="panel-inner">
+            <div class="pixel-dino" aria-hidden="true"></div>
+            <h2>Dino Quest: AI Jump Run</h2>
+            <p>Run left to right, jump over AI hazards, collect boosts, and unlock puzzle gates by solving DS, ML, coding, and GenAI challenges.</p>
+            <div class="start-actions">
+              <button id="newGameBtn" type="button">New Quest</button>
+              <button id="continueBtn" type="button">Continue</button>
+            </div>
+            <div class="key-grid" aria-label="Controls">
+              <span>Run</span><kbd>A / D</kbd><kbd>Arrows</kbd>
+              <span>Jump</span><kbd>W / Up</kbd><kbd>Space</kbd>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel battle-panel" id="battlePanel" aria-hidden="true">
+          <div class="battle-header">
+            <div>
+              <span class="eyebrow" id="battleTopic">Python</span>
+              <h2 id="battleTitle">Battle</h2>
+            </div>
+            <div class="battle-timer">
+              <span>Timer</span>
+              <strong id="battleTimer">30</strong>
+            </div>
+          </div>
+          <div class="battle-health">
+            <div>
+              <span id="enemyName">Enemy</span>
+              <div class="bar enemy"><i id="enemyHealthBar"></i></div>
+            </div>
+            <div>
+              <span id="battleProgress">Question 1 / 1</span>
+              <div class="bar dino"><i id="dinoBattleHealthBar"></i></div>
+            </div>
+          </div>
+          <article class="question-card">
+            <div class="question-meta">
+              <span id="questionType">Multiple Choice</span>
+              <span id="questionDifficulty">Level 1</span>
+            </div>
+            <pre id="questionPrompt"></pre>
+            <form id="answerForm" autocomplete="off">
+              <div id="answerOptions" class="answer-options"></div>
+              <label class="free-answer" id="freeAnswerWrap">
+                <span>Answer</span>
+                <textarea id="freeAnswer" rows="4" spellcheck="false"></textarea>
+              </label>
+              <button id="submitAnswerBtn" type="submit">Submit Answer</button>
+            </form>
+            <p class="feedback" id="battleFeedback"></p>
+          </article>
+        </section>
+
+        <section class="panel screen" id="endScreen">
+          <div class="panel-inner">
+            <h2 id="endTitle">Quest Complete</h2>
+            <p id="endMessage">The course is clear.</p>
+            <button id="restartBtn" type="button">Play Again</button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="status-row">
+        <span id="statusText">Ready.</span>
+        <span>Jump hazards, collect boosts, solve puzzle gates, and defeat each level boss.</span>
+      </footer>
+    </div>
+
+    <script src="data/questions.js?v=20260704"></script>
+    <script src="js/utils.js?v=20260704"></script>
+    <script src="js/assets.js?v=20260704"></script>
+    <script src="js/audio.js?v=20260704"></script>
+    <script src="js/maze.js?v=20260704"></script>
+    <script src="js/player.js?v=20260704b"></script>
+    <script src="js/enemy.js?v=20260704"></script>
+    <script src="js/questionEngine.js?v=20260704"></script>
+    <script src="js/battleSystem.js?v=20260704"></script>
+    <script src="js/ui.js?v=20260704"></script>
+    <script src="js/game.js?v=20260704b"></script>
+    <script src="js/main.js?v=20260704"></script>
+  </body>
+</html>
