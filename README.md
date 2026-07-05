@@ -13,9 +13,9 @@ Import this GitHub repository into Replit as a static HTML/CSS/JS project. No ba
 ## Controls
 
 - Run: `A` / `D` or arrow keys
-- Jump: `W`, `ArrowUp`, or `Space`
+- Double jump: press `W`, `ArrowUp`, or `Space` once, then press again in the air
 - Duck: `S` or `ArrowDown`
 
 ## Gameplay
 
-Run left to right, jump hazards, collect boosts, and solve DS, AI, ML, Coding, and GenAI puzzle gates. Boss gates require multiple correct answers.
+Run left to right, double-jump hazards, collect boosts, and solve DS, AI, ML, Coding, and GenAI puzzle gates. Boss gates require multiple correct answers.

@@ -12,9 +12,11 @@
       this.size = 42;
       this.runSpeed = 235;
       this.airSpeed = 205;
-      this.jumpVelocity = 640;
-      this.gravity = 1800;
+      this.jumpVelocity = 680;
+      this.doubleJumpVelocity = 610;
+      this.gravity = 1720;
       this.maxFallSpeed = 980;
+      this.maxJumps = 2;
       this.maxHealth = 100;
       this.health = this.maxHealth;
       this.xp = 0;
@@ -34,7 +36,7 @@
       this.vy = 0;
       this.onGround = true;
       this.wasOnGround = true;
-      this.jumpsLeft = 1;
+      this.jumpsLeft = this.maxJumps;
       this.ducking = false;
       this.checkpoint = { x: this.x, y: this.y };
     }
@@ -77,7 +79,7 @@
       this.direction = "right";
 
       if (wantsJump && !this.jumpHeld && this.jumpsLeft > 0 && !this.ducking) {
-        this.vy = -this.jumpVelocity;
+        this.vy = this.jumpsLeft === this.maxJumps ? -this.jumpVelocity : -this.doubleJumpVelocity;
         this.onGround = false;
         this.jumpsLeft -= 1;
       }
@@ -94,7 +96,7 @@
         this.y = world.groundY - this.height;
         this.vy = 0;
         this.onGround = true;
-        this.jumpsLeft = 1;
+        this.jumpsLeft = this.maxJumps;
       }
 
       platforms.forEach((platform) => {
@@ -106,7 +108,7 @@
           this.y = platform.y - this.height;
           this.vy = 0;
           this.onGround = true;
-          this.jumpsLeft = 1;
+          this.jumpsLeft = this.maxJumps;
         }
       });
 
@@ -155,7 +157,7 @@
     respawn() {
       this.setPosition(this.checkpoint.x, this.checkpoint.y);
       this.onGround = false;
-      this.jumpsLeft = 1;
+      this.jumpsLeft = this.maxJumps;
     }
 
     serialize() {

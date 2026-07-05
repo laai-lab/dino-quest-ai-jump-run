@@ -112,7 +112,7 @@
       this.newLevel(1, false);
       this.state = "playing";
       this.ui.hideStart();
-      this.ui.setStatus("Run right, jump hazards, and solve AI puzzle gates.");
+      this.ui.setStatus("Run right, double-jump hazards, and solve AI puzzle gates.");
       this.ui.updateHud(this);
     }
 
@@ -160,8 +160,8 @@
         if (i % 2 === 0) {
           const platform = {
             x: baseX - 80,
-            y: groundY - randInt(108, 185),
-            w: randInt(160, 260),
+            y: groundY - randInt(132, 225),
+            w: randInt(170, 250),
             h: 22,
             label: choice(["DS", "ML", "AI", "SQL", "GEN"])
           };
@@ -180,11 +180,11 @@
         }
 
         this.hazards.push({
-          type: choice(["spike", "bug", "gap"]),
-          x: baseX + randInt(-40, 70),
+          type: choice(["spike", "bug", "spike"]),
+          x: baseX + randInt(-20, 52),
           y: groundY - 30,
-          w: randInt(34, 58),
-          h: 30,
+          w: randInt(22, 36),
+          h: 28,
           damage: 10 + this.level * 3
         });
 
@@ -450,6 +450,15 @@
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+      ctx.fillStyle = "rgba(246, 189, 58, 0.9)";
+      ctx.beginPath();
+      ctx.arc(this.canvas.width - 94, 76, 36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 248, 222, 0.45)";
+      ctx.beginPath();
+      ctx.arc(this.canvas.width - 94, 76, 52, 0, Math.PI * 2);
+      ctx.fill();
+
       for (let layer = 0; layer < 3; layer += 1) {
         const speed = 0.12 + layer * 0.08;
         const offset = -(this.camera.x * speed) % 360;
@@ -460,12 +469,32 @@
           ctx.fillRect(x + 28, y - 12, 72, 18);
         }
       }
+
+      const hillOffset = -(this.camera.x * 0.32) % 520;
+      for (let x = hillOffset - 180; x < this.canvas.width + 540; x += 520) {
+        ctx.fillStyle = "rgba(47, 155, 103, 0.3)";
+        ctx.beginPath();
+        ctx.moveTo(x, this.world.groundY);
+        ctx.lineTo(x + 160, this.world.groundY - 118);
+        ctx.lineTo(x + 340, this.world.groundY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "rgba(112, 86, 216, 0.18)";
+        ctx.beginPath();
+        ctx.moveTo(x + 170, this.world.groundY);
+        ctx.lineTo(x + 330, this.world.groundY - 88);
+        ctx.lineTo(x + 510, this.world.groundY);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     drawCourse(ctx, time) {
       const groundY = this.world.groundY;
       ctx.fillStyle = "#263447";
       ctx.fillRect(0, groundY, this.world.width, this.canvas.height - groundY);
+      ctx.fillStyle = "rgba(15, 23, 42, 0.18)";
+      ctx.fillRect(0, groundY + 18, this.world.width, 10);
       for (let x = 0; x < this.world.width; x += 32) {
         ctx.fillStyle = x % 64 === 0 ? "#334155" : "#3e4e66";
         ctx.fillRect(x, groundY, 32, 18);
@@ -476,8 +505,13 @@
       this.platforms.forEach((platform) => {
         ctx.fillStyle = "#17202a";
         ctx.fillRect(platform.x - 4, platform.y + platform.h - 2, platform.w + 8, 8);
-        ctx.fillStyle = "#f6bd3a";
+        const platformGradient = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
+        platformGradient.addColorStop(0, "#ffe08a");
+        platformGradient.addColorStop(1, "#f6bd3a");
+        ctx.fillStyle = platformGradient;
         ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+        ctx.fillStyle = "rgba(255,255,255,0.45)";
+        ctx.fillRect(platform.x + 6, platform.y + 4, platform.w - 12, 4);
         ctx.fillStyle = "#fff8de";
         ctx.font = "bold 13px Trebuchet MS";
         ctx.fillText(platform.label, platform.x + 12, platform.y + 16);
@@ -491,18 +525,21 @@
     drawHazard(ctx, hazard, time) {
       if (hazard.type === "bug") {
         ctx.fillStyle = "#ef5d58";
-        ctx.fillRect(hazard.x, hazard.y + 8 + Math.sin(time * 12) * 2, hazard.w, hazard.h - 8);
+        ctx.fillRect(hazard.x, hazard.y + 9 + Math.sin(time * 12) * 2, hazard.w, hazard.h - 9);
         ctx.fillStyle = "#17202a";
-        ctx.fillRect(hazard.x + 7, hazard.y + 14, 6, 6);
-        ctx.fillRect(hazard.x + hazard.w - 14, hazard.y + 14, 6, 6);
+        ctx.fillRect(hazard.x + 5, hazard.y + 15, 5, 5);
+        ctx.fillRect(hazard.x + hazard.w - 10, hazard.y + 15, 5, 5);
         return;
       }
       ctx.fillStyle = "#b42318";
-      for (let x = hazard.x; x < hazard.x + hazard.w; x += 18) {
+      const spikeCount = Math.max(1, Math.round(hazard.w / 16));
+      const spikeWidth = hazard.w / spikeCount;
+      for (let i = 0; i < spikeCount; i += 1) {
+        const x = hazard.x + i * spikeWidth;
         ctx.beginPath();
         ctx.moveTo(x, hazard.y + hazard.h);
-        ctx.lineTo(x + 9, hazard.y);
-        ctx.lineTo(x + 18, hazard.y + hazard.h);
+        ctx.lineTo(x + spikeWidth / 2, hazard.y + 2);
+        ctx.lineTo(x + spikeWidth, hazard.y + hazard.h);
         ctx.closePath();
         ctx.fill();
       }

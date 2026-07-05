@@ -30,14 +30,17 @@
 
     getQuestion(topic, level, typeHint) {
       const desiredDifficulty = Math.min(5, Math.max(1, Math.ceil(level)));
-      let pool = this.questions.filter((question) => {
-        const topicMatch = question.topic === topic || Math.random() < 0.3;
-        const difficultyMatch = question.difficulty <= desiredDifficulty + 1;
-        const typeMatch = !typeHint || question.type === typeHint || Math.random() < 0.22;
-        return topicMatch && difficultyMatch && typeMatch && !this.used.has(question.id);
-      });
+      const isUsable = (question) => question.difficulty <= desiredDifficulty + 1 && !this.used.has(question.id);
+      const typeMatches = (question) => !typeHint || question.type === typeHint;
+      const pools = [
+        this.questions.filter((question) => question.topic === topic && typeMatches(question) && isUsable(question)),
+        this.questions.filter((question) => question.topic === topic && isUsable(question)),
+        this.questions.filter((question) => typeMatches(question) && isUsable(question)),
+        this.questions.filter(isUsable)
+      ];
+      let pool = pools.find((items) => items.length > 0) || [];
 
-      if (!pool.length) {
+      if (!pool.length && this.used.size) {
         this.used.clear();
         pool = this.questions.filter((question) => question.difficulty <= desiredDifficulty + 1);
       }

@@ -315,6 +315,225 @@
       "prompt": "What is printed?\n\nconst nums = [2, 3, 4];\nconsole.log(nums.map(n => n * 2)[1]);",
       "answer": "6",
       "acceptedAnswers": ["6"]
+    },
+    {
+      "id": "py-mcq-002",
+      "topic": "Python",
+      "type": "multiple-choice",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "Which keyword handles an exception in Python?",
+      "options": ["except", "catch", "rescue", "handle"],
+      "answer": "except"
+    },
+    {
+      "id": "py-code-002",
+      "topic": "Python",
+      "type": "code-completion",
+      "difficulty": 3,
+      "timeLimit": 40,
+      "prompt": "Complete the dictionary lookup with a default of 0.\n\ncount = scores.____('Amit', 0)",
+      "placeholder": "Method name only",
+      "answer": "get",
+      "acceptedAnswers": ["get"]
+    },
+    {
+      "id": "py-output-002",
+      "topic": "Python",
+      "type": "output-prediction",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "What is printed?\n\nprint(len({'a': 1, 'b': 2}))",
+      "answer": "2",
+      "acceptedAnswers": ["2"]
+    },
+    {
+      "id": "sql-mcq-002",
+      "topic": "SQL",
+      "type": "multiple-choice",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "Which join keeps every row from the left table?",
+      "options": ["LEFT JOIN", "INNER JOIN", "CROSS JOIN", "RIGHT ONLY"],
+      "answer": "LEFT JOIN"
+    },
+    {
+      "id": "sql-query-003",
+      "topic": "SQL",
+      "type": "sql",
+      "difficulty": 3,
+      "timeLimit": 50,
+      "prompt": "Write a query to return product names from products ordered by price from high to low.",
+      "placeholder": "SQL query",
+      "answer": "select name from products order by price desc",
+      "acceptedAnswers": ["select name from products order by price desc", "SELECT name FROM products ORDER BY price DESC"]
+    },
+    {
+      "id": "ds-mcq-002",
+      "topic": "Data Science",
+      "type": "multiple-choice",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "Which chart is usually best for showing a distribution of one numeric variable?",
+      "options": ["Histogram", "Pie chart", "Network graph", "Gantt chart"],
+      "answer": "Histogram"
+    },
+    {
+      "id": "ds-code-001",
+      "topic": "Data Science",
+      "type": "code-completion",
+      "difficulty": 3,
+      "timeLimit": 40,
+      "prompt": "Complete the pandas expression for selecting the age column.\n\ndf____",
+      "placeholder": "Column selector",
+      "answer": "['age']",
+      "acceptedAnswers": ["['age']", "[\"age\"]"]
+    },
+    {
+      "id": "ml-mcq-002",
+      "topic": "Machine Learning",
+      "type": "multiple-choice",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "Which metric is most natural for classification accuracy?",
+      "options": ["Correct predictions divided by total predictions", "Mean squared error", "Training time only", "Number of columns"],
+      "answer": "Correct predictions divided by total predictions"
+    },
+    {
+      "id": "ml-debug-002",
+      "topic": "Machine Learning",
+      "type": "debugging",
+      "difficulty": 4,
+      "timeLimit": 45,
+      "prompt": "Your model performs well on training data but poorly on new data. What is this called?",
+      "placeholder": "Short phrase",
+      "answer": "overfitting",
+      "acceptedAnswers": ["overfitting", "overfit"]
+    },
+    {
+      "id": "dl-mcq-002",
+      "topic": "Deep Learning",
+      "type": "multiple-choice",
+      "difficulty": 3,
+      "timeLimit": 35,
+      "prompt": "Which layer type is commonly used for image feature extraction?",
+      "options": ["Convolutional layer", "CSV layer", "Prompt layer", "ORDER BY layer"],
+      "answer": "Convolutional layer"
+    },
+    {
+      "id": "dl-debug-001",
+      "topic": "Deep Learning",
+      "type": "debugging",
+      "difficulty": 4,
+      "timeLimit": 45,
+      "prompt": "Training loss becomes NaN after using a very large learning rate. What should you usually do first?",
+      "placeholder": "Short action",
+      "answer": "lower the learning rate",
+      "acceptedAnswers": ["lower the learning rate", "reduce the learning rate", "decrease learning rate"]
+    },
+    {
+      "id": "genai-mcq-002",
+      "topic": "Generative AI",
+      "type": "multiple-choice",
+      "difficulty": 3,
+      "timeLimit": 35,
+      "prompt": "Which technique helps constrain a generated answer to supplied documents?",
+      "options": ["RAG", "Random guessing", "Pixel sorting", "Packet sniffing"],
+      "answer": "RAG"
+    },
+    {
+      "id": "genai-output-001",
+      "topic": "Generative AI",
+      "type": "output-prediction",
+      "difficulty": 3,
+      "timeLimit": 35,
+      "prompt": "A model is asked to produce five ideas but returns ten. Which prompt detail was likely ignored?",
+      "answer": "count",
+      "acceptedAnswers": ["count", "number", "the requested count", "five"]
+    },
+    {
+      "id": "llm-mcq-002",
+      "topic": "LLMs",
+      "type": "multiple-choice",
+      "difficulty": 3,
+      "timeLimit": 35,
+      "prompt": "What does temperature usually control in LLM generation?",
+      "options": ["Randomness", "Screen brightness", "File size", "Database locks"],
+      "answer": "Randomness"
+    },
+    {
+      "id": "llm-code-001",
+      "topic": "LLMs",
+      "type": "code-completion",
+      "difficulty": 4,
+      "timeLimit": 45,
+      "prompt": "Complete the common decoding setting name.\n\nmodel.generate(prompt, temperature=0.2, max_____=200)",
+      "placeholder": "Missing word",
+      "answer": "tokens",
+      "acceptedAnswers": ["tokens", "new_tokens"]
+    },
+    {
+      "id": "prompt-mcq-002",
+      "topic": "Prompt Engineering",
+      "type": "multiple-choice",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "Which prompt addition usually improves answer format control?",
+      "options": ["Specify the output structure", "Remove all context", "Use only vague verbs", "Ask two unrelated tasks"],
+      "answer": "Specify the output structure"
+    },
+    {
+      "id": "prompt-debug-001",
+      "topic": "Prompt Engineering",
+      "type": "debugging",
+      "difficulty": 3,
+      "timeLimit": 40,
+      "prompt": "A prompt says 'analyze this' but gives no audience, goal, or format. What is the main issue?",
+      "placeholder": "Short phrase",
+      "answer": "too vague",
+      "acceptedAnswers": ["too vague", "vague", "underspecified", "not specific"]
+    },
+    {
+      "id": "rag-mcq-002",
+      "topic": "RAG",
+      "type": "multiple-choice",
+      "difficulty": 3,
+      "timeLimit": 35,
+      "prompt": "In RAG, what are embeddings used for?",
+      "options": ["Finding similar text chunks", "Drawing buttons", "Compressing images only", "Encrypting passwords"],
+      "answer": "Finding similar text chunks"
+    },
+    {
+      "id": "rag-debug-002",
+      "topic": "RAG",
+      "type": "debugging",
+      "difficulty": 4,
+      "timeLimit": 45,
+      "prompt": "A RAG answer cites outdated chunks. What should you check first?",
+      "placeholder": "Short answer",
+      "answer": "index freshness",
+      "acceptedAnswers": ["index freshness", "stale index", "refresh the index", "document index"]
+    },
+    {
+      "id": "coding-output-002",
+      "topic": "Coding",
+      "type": "output-prediction",
+      "difficulty": 2,
+      "timeLimit": 30,
+      "prompt": "What is printed?\n\nconsole.log(Boolean('false'));",
+      "answer": "true",
+      "acceptedAnswers": ["true"]
+    },
+    {
+      "id": "coding-code-002",
+      "topic": "Coding",
+      "type": "code-completion",
+      "difficulty": 3,
+      "timeLimit": 40,
+      "prompt": "Complete the JavaScript array filter for scores above 80.\n\nscores.filter(score => score ____ 80)",
+      "placeholder": "Operator and value",
+      "answer": "> 80",
+      "acceptedAnswers": ["> 80", ">80"]
     }
   ]
 }
