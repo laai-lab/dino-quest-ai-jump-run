@@ -2,626 +2,505 @@
   "use strict";
 
   const DinoQuest = window.DinoQuest || (window.DinoQuest = {});
-  const { randInt, choice, rectsOverlap } = DinoQuest.Utils;
+  const { rand, randInt, choice, clamp, rectsOverlap, circleRectOverlap } = DinoQuest.Utils;
+  const Assets = DinoQuest.Assets;
 
   class Game {
     constructor(canvas, ui) {
       this.canvas = canvas;
       this.ctx = canvas.getContext("2d");
-      this.ctx.imageSmoothingEnabled = false;
-      this.tileSize = 32;
-      this.level = 1;
-      this.maxLevel = 5;
       this.ui = ui;
-      this.player = new DinoQuest.Player(this.tileSize);
-      this.questionEngine = new DinoQuest.QuestionEngine();
       this.audio = new DinoQuest.AudioManager();
-      this.battleSystem = new DinoQuest.BattleSystem(this, ui, this.questionEngine, this.audio);
-      this.input = { left: false, right: false, up: false, down: false, jump: false };
-      this.world = null;
-      this.platforms = [];
-      this.hazards = [];
-      this.collectibles = [];
-      this.enemies = [];
-      this.checkpoints = [];
-      this.finishGate = null;
-      this.camera = { x: 0, y: 0 };
-      this.state = "loading";
+      this.questions = new DinoQuest.QuestionEngine();
+      this.utils = DinoQuest.Utils;
+
+      this.width = 960;
+      this.height = 420;
+      this.groundY = 330;
+      this.deltaScale = 1;
+      this.state = "menu";
       this.lastTime = 0;
-      this.trapCooldown = 0;
-      this.topics = ["Data Science", "Machine Learning", "Coding", "Generative AI", "LLMs", "Prompt Engineering", "RAG", "Python", "SQL", "Deep Learning"];
-      this.bindKeys();
+      this.worldTime = 0;
+      this.score = 0;
+      this.highScore = Number(localStorage.getItem("dinoQuestHighScore") || 0);
+      this.leaderboard = this.loadLeaderboard();
+      this.level = 1;
+      this.maxLevel = 8;
+      this.lives = 3;
+      this.baseSpeed = 285;
+      this.speed = this.baseSpeed;
+      this.obstaclesPassed = 0;
+      this.obstaclesForGate = 4;
+      this.currentQuestion = null;
+      this.input = { jumpHeld: false };
+      this.stars = [];
+      this.clouds = [];
+      this.obstacles = [];
+      this.collectibles = [];
+      this.particles = [];
+      this.spawnTimer = 0;
+      this.invulnerableTimer = 0;
+      this.dino = this.createDino();
+
+      this.bindEvents();
     }
 
-    async boot() {
-      await this.questionEngine.load();
+    boot() {
       this.resize();
-      this.newLevel(1, false);
-      this.state = "menu";
+      this.resetWorld();
       this.ui.showStart();
       this.ui.updateHud(this);
       requestAnimationFrame((time) => this.loop(time));
     }
 
-    bindKeys() {
-      window.addEventListener("keydown", (event) => {
-        const isEditorTarget = this.isEditorTarget(event.target);
-        if (!isEditorTarget && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
-          event.preventDefault();
-        }
-        if (!isEditorTarget) {
-          this.setKey(event.key, true);
-        }
-        if (!isEditorTarget && (event.key === "Enter" || event.key === " ") && this.state === "menu") {
-          this.startNewGame();
-        }
-      });
-      window.addEventListener("keyup", (event) => {
-        if (!this.isEditorTarget(event.target)) {
-          this.setKey(event.key, false);
-        }
-      });
-      window.addEventListener("resize", () => {
-        this.resize();
-        if (this.world) this.world.groundY = Math.max(280, this.canvas.height - 82);
-      });
-    }
-
-    isEditorTarget(target) {
-      if (!target || !target.closest) return false;
-      return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
-    }
-
-    setKey(key, pressed) {
-      const map = {
-        ArrowLeft: "left",
-        a: "left",
-        A: "left",
-        ArrowRight: "right",
-        d: "right",
-        D: "right",
-        ArrowUp: "up",
-        w: "up",
-        W: "up",
-        " ": "jump",
-        Enter: "jump",
-        ArrowDown: "down",
-        s: "down",
-        S: "down"
+    createDino() {
+      return {
+        x: 115,
+        y: 0,
+        w: 58,
+        h: 62,
+        vy: 0,
+        grounded: true,
+        canDouble: true,
+        dash: 0,
+        dashCooldown: 0,
+        shield: 0,
+        slow: 0,
+        invulnerable: 0
       };
-      if (map[key]) {
-        this.input[map[key]] = pressed;
+    }
+
+    bindEvents() {
+      window.addEventListener("resize", () => this.resize());
+      window.addEventListener("keydown", (event) => this.onKey(event, true));
+      window.addEventListener("keyup", (event) => this.onKey(event, false));
+      this.canvas.addEventListener("pointerdown", () => {
+        if (this.state === "menu" || this.state === "over") this.start();
+        else if (this.state === "playing") this.jump();
+      });
+    }
+
+    onKey(event, pressed) {
+      const key = event.key;
+      if ([" ", "ArrowUp", "ArrowDown"].includes(key)) event.preventDefault();
+      if (!pressed) {
+        if (key === " " || key === "ArrowUp" || key.toLowerCase() === "w") this.input.jumpHeld = false;
+        return;
       }
+
+      if (key === "Enter" && (this.state === "menu" || this.state === "over")) this.start();
+      if (key === " " || key === "ArrowUp" || key.toLowerCase() === "w") this.jump();
+      if (key === "Shift" || key.toLowerCase() === "d" || key === "ArrowDown") this.dash();
+      if (key.toLowerCase() === "p" || key === "Escape") this.togglePause();
     }
 
     resize() {
       const rect = this.canvas.getBoundingClientRect();
-      const width = Math.max(480, Math.floor(rect.width));
-      const height = Math.max(320, Math.floor(rect.height));
-      if (this.canvas.width !== width || this.canvas.height !== height) {
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.ctx.imageSmoothingEnabled = false;
-      }
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      this.width = Math.max(360, rect.width || 960);
+      this.height = Math.max(320, rect.height || 420);
+      this.canvas.width = Math.floor(this.width * dpr);
+      this.canvas.height = Math.floor(this.height * dpr);
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.groundY = Math.max(238, this.height - 88);
+      this.dino.y = Math.min(this.dino.y || this.groundY - this.dino.h, this.groundY - this.dino.h);
+      this.rebuildBackdrop();
     }
 
-    startNewGame() {
-      this.audio.ensure();
-      this.level = 1;
-      this.player = new DinoQuest.Player(this.tileSize);
-      this.newLevel(1, false);
-      this.state = "playing";
-      this.ui.hideStart();
-      this.ui.setStatus("Run right, double-jump hazards, and solve AI puzzle gates.");
-      this.ui.updateHud(this);
-    }
-
-    newLevel(level, keepPlayer) {
-      this.level = level;
-      this.resize();
-      const groundY = Math.max(280, this.canvas.height - 82);
-      this.world = {
-        width: Math.max(2600 + level * 720, this.canvas.width + 1400),
-        groundY,
-        autoRunSpeed: 104 + level * 12,
-        skyColor: ["#8bd3ff", "#95e2cc", "#f7d98c", "#b7a6ff", "#89c2ff"][Math.min(level - 1, 4)]
-      };
-      this.platforms = [];
-      this.hazards = [];
-      this.collectibles = [];
-      this.enemies = [];
-      this.checkpoints = [];
-      this.finishGate = {
-        x: this.world.width - 180,
-        y: groundY - 104,
-        w: 54,
-        h: 104,
-        active: false
-      };
-      this.buildRunnerCourse();
-      if (!keepPlayer) {
-        this.player.resetForWorld(this.world);
-      } else {
-        this.player.resetForWorld(this.world);
-      }
-      this.ui.updateHud(this);
-    }
-
-    buildRunnerCourse() {
-      const groundY = this.world.groundY;
-      const palettes = ["#6fb6ff", "#44d39d", "#f6bd3a", "#7056d8", "#ef5d58"];
-      const segments = 8 + this.level * 2;
-      const segmentWidth = Math.floor((this.world.width - 520) / segments);
-
-      for (let i = 1; i <= segments; i += 1) {
-        const baseX = 260 + i * segmentWidth;
-        const topic = this.topics[(i + this.level) % this.topics.length];
-
-        if (i % 2 === 0) {
-          const platform = {
-            x: baseX - 80,
-            y: groundY - randInt(132, 225),
-            w: randInt(170, 250),
-            h: 22,
-            label: choice(["DS", "ML", "AI", "SQL", "GEN"])
-          };
-          this.platforms.push(platform);
-          this.createCoinArc(platform.x + 24, platform.y - 36, 5);
-          if (Math.random() < 0.7) {
-            this.collectibles.push({
-              type: choice(["xp", "shield", "heart"]),
-              x: platform.x + platform.w - 44,
-              y: platform.y - 52,
-              w: 28,
-              h: 28,
-              collected: false
-            });
-          }
-        }
-
-        this.hazards.push({
-          type: choice(["spike", "bug", "spike"]),
-          x: baseX + randInt(-20, 52),
-          y: groundY - 30,
-          w: randInt(22, 36),
-          h: 28,
-          damage: 10 + this.level * 3
-        });
-
-        if (i % 3 === 0) {
-          this.checkpoints.push({
-            x: baseX + 120,
-            y: groundY - 76,
-            w: 34,
-            h: 76,
-            reached: false
-          });
-        }
-
-        if (i % 2 === 1) {
-          this.enemies.push(this.createPuzzleGate({
-            id: i,
-            x: baseX + 170,
-            y: groundY - 76,
-            topic,
-            type: choice(["multiple-choice", "code-completion", "debugging", "sql", "output-prediction"]),
-            palette: palettes[i % palettes.length],
-            isBoss: false
-          }));
-        }
-      }
-
-      this.enemies.push(this.createPuzzleGate({
-        id: 900 + this.level,
-        x: this.finishGate.x - 130,
-        y: groundY - 112,
-        topic: this.topics[(this.level * 2) % this.topics.length],
-        type: null,
-        palette: "#ef5d58",
-        isBoss: true
+    rebuildBackdrop() {
+      this.stars = Array.from({ length: 88 }, () => ({
+        x: rand(0, this.width),
+        y: rand(12, Math.max(140, this.groundY - 120)),
+        s: rand(1, 2.4),
+        twinkle: rand(0.8, 2)
       }));
+      this.clouds = Array.from({ length: 6 }, () => ({
+        x: rand(0, this.width),
+        y: rand(28, Math.max(110, this.groundY - 190)),
+        s: rand(0.65, 1.45)
+      }));
+    }
 
-      for (let x = 150; x < this.world.width - 240; x += 180) {
-        this.createCoinArc(x, groundY - randInt(72, 132), 3);
+    resetWorld() {
+      this.worldTime = 0;
+      this.score = 0;
+      this.level = 1;
+      this.lives = 3;
+      this.speed = this.baseSpeed;
+      this.obstaclesPassed = 0;
+      this.obstaclesForGate = 4;
+      this.obstacles = [];
+      this.collectibles = [];
+      this.particles = [];
+      this.spawnTimer = 0.55;
+      this.dino = this.createDino();
+      this.dino.y = this.groundY - this.dino.h;
+      this.ui.updateHud(this);
+    }
+
+    start() {
+      this.audio.ensure();
+      this.resetWorld();
+      this.state = "playing";
+      this.ui.hideOverlays();
+      this.ui.setStatus("Run started. Jump over hazards and collect power-ups.");
+    }
+
+    togglePause() {
+      if (this.state === "playing") {
+        this.state = "paused";
+        this.ui.showPause();
+      } else if (this.state === "paused") {
+        this.state = "playing";
+        this.ui.hideOverlays();
+        this.ui.setStatus("Back on the trail.");
       }
     }
 
-    createPuzzleGate(config) {
-      const isBoss = Boolean(config.isBoss);
-      return {
-        id: config.id,
-        name: isBoss ? `AI Core Gate ${this.level}` : `${config.topic} Gate`,
-        topic: config.topic,
-        type: config.type,
-        isBoss,
-        x: config.x,
-        y: config.y,
-        size: isBoss ? 64 : 46,
-        w: isBoss ? 68 : 50,
-        h: isBoss ? 92 : 68,
-        maxHealth: isBoss ? 100 + this.level * 34 : 48 + this.level * 14,
-        health: isBoss ? 100 + this.level * 34 : 48 + this.level * 14,
-        damage: isBoss ? 24 : 12 + this.level * 2,
-        questionsRequired: isBoss ? 3 + Math.floor(this.level / 2) : 1,
-        defeated: false,
-        palette: config.palette,
-        facing: "left"
-      };
+    jump() {
+      if (this.state === "menu" || this.state === "over") {
+        this.start();
+        return;
+      }
+      if (this.state !== "playing" || this.input.jumpHeld) return;
+      this.input.jumpHeld = true;
+      if (this.dino.grounded) {
+        this.dino.vy = -690;
+        this.dino.grounded = false;
+        this.dino.canDouble = true;
+        this.emitDust(this.dino.x + 20, this.groundY - 4, "#52e0ff", 14);
+        this.audio.jump();
+      } else if (this.dino.canDouble) {
+        this.dino.vy = -610;
+        this.dino.canDouble = false;
+        this.emitDust(this.dino.x + 18, this.dino.y + this.dino.h, "#9d8cff", 10);
+        this.audio.jump();
+      }
     }
 
-    createCoinArc(x, y, count) {
-      for (let i = 0; i < count; i += 1) {
-        this.collectibles.push({
-          type: "coin",
-          x: x + i * 26,
-          y: y - Math.sin((i / Math.max(1, count - 1)) * Math.PI) * 28,
-          w: 22,
-          h: 22,
-          collected: false
-        });
-      }
+    dash() {
+      if (this.state !== "playing" || this.dino.dashCooldown > 0) return;
+      this.dino.dash = 0.24;
+      this.dino.dashCooldown = 1.25;
+      this.emitDust(this.dino.x - 8, this.dino.y + 35, "#9d8cff", 14);
+      this.audio.dash();
     }
 
     loop(time) {
-      const dt = Math.min(0.05, (time - this.lastTime) / 1000 || 0);
+      const dt = Math.min(0.033, (time - this.lastTime || 16) / 1000);
       this.lastTime = time;
-      this.update(dt, time);
-      this.draw(time / 1000);
-      requestAnimationFrame((next) => this.loop(next));
+      this.deltaScale = dt * 60;
+      if (this.state === "playing") this.update(dt);
+      this.draw();
+      requestAnimationFrame((nextTime) => this.loop(nextTime));
     }
 
-    update(dt, now) {
-      if (this.state === "battle") {
-        this.battleSystem.update(now);
-        return;
-      }
-      if (this.state !== "playing") return;
+    update(dt) {
+      const slowFactor = this.dino.slow > 0 ? 0.55 : 1;
+      const runSpeed = this.speed * slowFactor;
+      this.worldTime += dt;
+      this.score += dt * this.level * 7;
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) this.spawnPattern();
 
-      this.player.update(dt, this.input, this.world, this.platforms, now);
-      this.checkHazards(now);
-      this.checkCollectibles(now);
-      this.checkCheckpoints(now);
-      this.checkEnemyCollision();
-      this.checkFinish();
-      this.updateCamera();
-      this.player.score += Math.floor(dt * (this.level + 1) * 4);
+      this.updateDino(dt);
+      this.updateObstacles(dt, runSpeed);
+      this.updateCollectibles(dt, runSpeed);
+      this.updateParticles(dt);
+
+      this.dino.shield = Math.max(0, this.dino.shield - dt);
+      this.dino.slow = Math.max(0, this.dino.slow - dt);
+      this.dino.dash = Math.max(0, this.dino.dash - dt);
+      this.dino.dashCooldown = Math.max(0, this.dino.dashCooldown - dt);
+      this.dino.invulnerable = Math.max(0, this.dino.invulnerable - dt);
+
+      this.highScore = Math.max(this.highScore, Math.floor(this.score));
+      localStorage.setItem("dinoQuestHighScore", String(this.highScore));
       this.ui.updateHud(this);
     }
 
-    checkHazards(now) {
-      if (now < this.trapCooldown) return;
-      const playerBounds = this.player.bounds();
-      const hazard = this.hazards.find((item) => rectsOverlap(playerBounds, item));
-      if (hazard && this.player.damage(hazard.damage, now)) {
-        this.audio.beep("hurt");
-        this.trapCooldown = now + 950;
-        this.ui.showToast("Ouch! Jump earlier next time.");
-      }
-      if (this.player.health <= 0) {
-        this.gameOver("The dino crashed before solving the next puzzle.");
-      }
-    }
-
-    checkCollectibles(now) {
-      const playerBounds = this.player.bounds();
-      this.collectibles.forEach((item) => {
-        if (item.collected) return;
-        if (rectsOverlap(playerBounds, item)) {
-          item.collected = true;
-          if (item.type === "coin") {
-            this.player.addCoins(1);
-            this.audio.beep("coin");
-          } else if (item.type === "heart") {
-            this.player.heal(22);
-            this.audio.beep("checkpoint");
-          } else if (item.type === "xp") {
-            this.player.addXp(12 + this.level * 3);
-            this.audio.beep("correct");
-          } else if (item.type === "shield") {
-            this.player.activateShield(9000, now);
-            this.audio.beep("checkpoint");
-          }
-          this.ui.showToast(`${item.type.toUpperCase()} collected.`);
-        }
-      });
-    }
-
-    checkCheckpoints(now) {
-      const playerBounds = this.player.bounds();
-      this.checkpoints.forEach((checkpoint) => {
-        if (!checkpoint.reached && rectsOverlap(playerBounds, checkpoint)) {
-          checkpoint.reached = true;
-          this.player.checkpoint = { x: checkpoint.x - 50, y: this.world.groundY - this.player.height };
-          this.save();
-          this.audio.beep("checkpoint");
-          this.ui.showToast("Checkpoint saved.");
-        }
-      });
-    }
-
-    checkEnemyCollision() {
-      const playerBounds = this.player.bounds();
-      const enemy = this.enemies.find((target) => !target.defeated && rectsOverlap(playerBounds, this.enemyBounds(target)));
-      if (enemy) {
-        this.state = "battle";
-        this.input = { left: false, right: false, up: false, down: false, jump: false };
-        this.battleSystem.start(enemy);
+    updateDino(dt) {
+      const gravity = this.dino.vy < 0 ? 1780 : 2050;
+      this.dino.vy += gravity * dt;
+      this.dino.y += this.dino.vy * dt;
+      if (this.dino.y >= this.groundY - this.dino.h) {
+        if (!this.dino.grounded) this.emitDust(this.dino.x + 22, this.groundY - 4, "#52e0ff", 8);
+        this.dino.y = this.groundY - this.dino.h;
+        this.dino.vy = 0;
+        this.dino.grounded = true;
+        this.dino.canDouble = true;
       }
     }
 
-    enemyBounds(enemy) {
-      return { x: enemy.x + 5, y: enemy.y + 8, w: enemy.w - 10, h: enemy.h - 12 };
-    }
-
-    checkFinish() {
-      const boss = this.enemies.find((enemy) => enemy.isBoss && !enemy.defeated);
-      this.finishGate.active = !boss;
-      if (this.finishGate.active && rectsOverlap(this.player.bounds(), this.finishGate)) {
-        this.advanceLevel();
-      }
-    }
-
-    endBattle(victory, enemy) {
-      if (this.state === "gameover" || this.state === "victory") return;
-      this.state = "playing";
-      if (victory) {
-        this.player.x = Math.max(this.player.x, enemy.x + enemy.w + 24);
-        this.ui.showToast(`${enemy.name} solved.`);
-        this.save();
-      } else {
-        this.player.respawn();
-        this.ui.showToast("Puzzle failed. Respawned at checkpoint.");
-      }
-      this.ui.updateHud(this);
-    }
-
-    advanceLevel() {
-      if (this.level >= this.maxLevel) {
-        this.victory();
-        return;
-      }
-      this.level += 1;
-      this.player.heal(35);
-      this.player.score += 450;
-      this.newLevel(this.level, true);
-      this.save();
-      this.audio.beep("win");
-      this.ui.showToast(`Level ${this.level}: faster gates, sharper puzzles.`);
-    }
-
-    gameOver(reason) {
-      this.state = "gameover";
-      this.ui.showEnd("Run Failed", reason);
-      this.ui.setStatus("Start a new run or load a checkpoint.");
-      this.audio.beep("hurt");
-    }
-
-    victory() {
-      this.state = "victory";
-      this.player.score += 1600;
-      this.ui.updateHud(this);
-      this.ui.showEnd("AI Run Complete", `Final score: ${this.player.score}. The dino outran the whole curriculum.`);
-      this.ui.setStatus("Victory saved locally.");
-      this.save();
-      this.audio.beep("win");
-    }
-
-    updateCamera() {
-      const target = this.player.x - this.canvas.width * 0.28;
-      this.camera.x += (target - this.camera.x) * 0.12;
-      this.camera.x = Math.max(0, Math.min(this.world.width - this.canvas.width, this.camera.x));
-      this.camera.y = 0;
-    }
-
-    draw(time) {
-      const ctx = this.ctx;
-      this.resize();
-      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      if (!this.world) return;
-      this.updateCamera();
-      this.drawBackground(ctx, time);
-      ctx.save();
-      ctx.translate(-Math.floor(this.camera.x), 0);
-      this.drawCourse(ctx, time);
-      this.collectibles.forEach((item) => {
-        if (!item.collected) {
-          DinoQuest.Assets.drawCollectible(ctx, item, item.x, item.y, 32, time);
-        }
-      });
-      this.enemies.forEach((enemy) => {
-        if (!enemy.defeated) {
-          DinoQuest.Assets.drawEnemy(ctx, enemy, enemy.x, enemy.y, enemy.size, time);
-          this.drawGateLabel(ctx, enemy);
-        }
-      });
-      DinoQuest.Assets.drawPlayer(ctx, this.player.x, this.player.y, this.player.size, this.player.direction, time, this.player.shieldUntil > performance.now());
-      ctx.restore();
-      this.drawProgress(ctx);
-      if (this.state === "menu") {
-        this.drawTitleBackdrop(ctx, time);
-      }
-    }
-
-    drawBackground(ctx, time) {
-      const gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-      gradient.addColorStop(0, this.world.skyColor);
-      gradient.addColorStop(0.58, "#dff8ff");
-      gradient.addColorStop(1, "#203048");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-      ctx.fillStyle = "rgba(246, 189, 58, 0.9)";
-      ctx.beginPath();
-      ctx.arc(this.canvas.width - 94, 76, 36, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255, 248, 222, 0.45)";
-      ctx.beginPath();
-      ctx.arc(this.canvas.width - 94, 76, 52, 0, Math.PI * 2);
-      ctx.fill();
-
-      for (let layer = 0; layer < 3; layer += 1) {
-        const speed = 0.12 + layer * 0.08;
-        const offset = -(this.camera.x * speed) % 360;
-        ctx.fillStyle = [`rgba(255,255,255,0.75)`, `rgba(68,211,157,0.24)`, `rgba(112,86,216,0.16)`][layer];
-        for (let x = offset - 80; x < this.canvas.width + 360; x += 360) {
-          const y = 58 + layer * 54 + Math.sin(time + layer + x) * 4;
-          ctx.fillRect(x, y, 96 + layer * 42, 18 + layer * 9);
-          ctx.fillRect(x + 28, y - 12, 72, 18);
-        }
-      }
-
-      const hillOffset = -(this.camera.x * 0.32) % 520;
-      for (let x = hillOffset - 180; x < this.canvas.width + 540; x += 520) {
-        ctx.fillStyle = "rgba(47, 155, 103, 0.3)";
-        ctx.beginPath();
-        ctx.moveTo(x, this.world.groundY);
-        ctx.lineTo(x + 160, this.world.groundY - 118);
-        ctx.lineTo(x + 340, this.world.groundY);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = "rgba(112, 86, 216, 0.18)";
-        ctx.beginPath();
-        ctx.moveTo(x + 170, this.world.groundY);
-        ctx.lineTo(x + 330, this.world.groundY - 88);
-        ctx.lineTo(x + 510, this.world.groundY);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-
-    drawCourse(ctx, time) {
-      const groundY = this.world.groundY;
-      ctx.fillStyle = "#263447";
-      ctx.fillRect(0, groundY, this.world.width, this.canvas.height - groundY);
-      ctx.fillStyle = "rgba(15, 23, 42, 0.18)";
-      ctx.fillRect(0, groundY + 18, this.world.width, 10);
-      for (let x = 0; x < this.world.width; x += 32) {
-        ctx.fillStyle = x % 64 === 0 ? "#334155" : "#3e4e66";
-        ctx.fillRect(x, groundY, 32, 18);
-      }
-      ctx.fillStyle = "#44d39d";
-      ctx.fillRect(0, groundY - 8, this.world.width, 8);
-
-      this.platforms.forEach((platform) => {
-        ctx.fillStyle = "#17202a";
-        ctx.fillRect(platform.x - 4, platform.y + platform.h - 2, platform.w + 8, 8);
-        const platformGradient = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
-        platformGradient.addColorStop(0, "#ffe08a");
-        platformGradient.addColorStop(1, "#f6bd3a");
-        ctx.fillStyle = platformGradient;
-        ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-        ctx.fillStyle = "rgba(255,255,255,0.45)";
-        ctx.fillRect(platform.x + 6, platform.y + 4, platform.w - 12, 4);
-        ctx.fillStyle = "#fff8de";
-        ctx.font = "bold 13px Trebuchet MS";
-        ctx.fillText(platform.label, platform.x + 12, platform.y + 16);
-      });
-
-      this.hazards.forEach((hazard) => this.drawHazard(ctx, hazard, time));
-      this.checkpoints.forEach((checkpoint) => this.drawCheckpoint(ctx, checkpoint));
-      this.drawFinishGate(ctx);
-    }
-
-    drawHazard(ctx, hazard, time) {
-      if (hazard.type === "bug") {
-        ctx.fillStyle = "#ef5d58";
-        ctx.fillRect(hazard.x, hazard.y + 9 + Math.sin(time * 12) * 2, hazard.w, hazard.h - 9);
-        ctx.fillStyle = "#17202a";
-        ctx.fillRect(hazard.x + 5, hazard.y + 15, 5, 5);
-        ctx.fillRect(hazard.x + hazard.w - 10, hazard.y + 15, 5, 5);
-        return;
-      }
-      ctx.fillStyle = "#b42318";
-      const spikeCount = Math.max(1, Math.round(hazard.w / 16));
-      const spikeWidth = hazard.w / spikeCount;
-      for (let i = 0; i < spikeCount; i += 1) {
-        const x = hazard.x + i * spikeWidth;
-        ctx.beginPath();
-        ctx.moveTo(x, hazard.y + hazard.h);
-        ctx.lineTo(x + spikeWidth / 2, hazard.y + 2);
-        ctx.lineTo(x + spikeWidth, hazard.y + hazard.h);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-
-    drawCheckpoint(ctx, checkpoint) {
-      ctx.fillStyle = checkpoint.reached ? "#44d39d" : "#6fb6ff";
-      ctx.fillRect(checkpoint.x, checkpoint.y, 10, checkpoint.h);
-      ctx.fillRect(checkpoint.x + 10, checkpoint.y, 28, 20);
-      ctx.fillStyle = "#fff8de";
-      ctx.fillText("CP", checkpoint.x + 13, checkpoint.y + 15);
-    }
-
-    drawFinishGate(ctx) {
-      const gate = this.finishGate;
-      ctx.fillStyle = gate.active ? "#44d39d" : "#536179";
-      ctx.fillRect(gate.x, gate.y, gate.w, gate.h);
-      ctx.fillStyle = "#17202a";
-      ctx.fillRect(gate.x + 10, gate.y + 16, gate.w - 20, gate.h - 26);
-      ctx.fillStyle = gate.active ? "#f6bd3a" : "#94a3b8";
-      ctx.fillRect(gate.x + 16, gate.y + 26, gate.w - 32, 12);
-    }
-
-    drawGateLabel(ctx, enemy) {
-      ctx.fillStyle = "rgba(255, 248, 222, 0.92)";
-      ctx.fillRect(enemy.x - 12, enemy.y - 24, enemy.w + 24, 20);
-      ctx.fillStyle = "#17202a";
-      ctx.font = "bold 12px Trebuchet MS";
-      ctx.fillText(enemy.isBoss ? "BOSS" : enemy.topic.split(" ")[0], enemy.x - 5, enemy.y - 10);
-    }
-
-    drawProgress(ctx) {
-      const pad = 14;
-      const w = Math.min(360, this.canvas.width - 28);
-      const pct = Math.max(0, Math.min(1, this.player.x / Math.max(1, this.world.width - this.canvas.width * 0.4)));
-      ctx.fillStyle = "rgba(15, 23, 42, 0.72)";
-      ctx.fillRect(pad, pad, w, 12);
-      ctx.fillStyle = "#f6bd3a";
-      ctx.fillRect(pad, pad, w * pct, 12);
-      ctx.fillStyle = "#58d68d";
-      ctx.fillRect(pad + w * pct - 3, pad - 4, 6, 20);
-    }
-
-    drawTitleBackdrop(ctx, time) {
-      ctx.fillStyle = `rgba(16, 24, 39, ${0.18 + Math.sin(time * 2) * 0.03})`;
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    save() {
-      const payload = {
-        version: 2,
-        savedAt: Date.now(),
-        level: this.level,
-        player: this.player.serialize()
+    updateObstacles(dt, runSpeed) {
+      const playerBox = {
+        x: this.dino.x + 8,
+        y: this.dino.y + 7,
+        w: this.dino.w - 16,
+        h: this.dino.h - 9
       };
-      localStorage.setItem("dinoQuestSave", JSON.stringify(payload));
-      this.ui.setStatus("Progress saved locally.");
-      return payload;
+
+      this.obstacles.forEach((obstacle) => {
+        obstacle.x -= runSpeed * dt;
+        if (!obstacle.counted && obstacle.x + obstacle.w < this.dino.x) {
+          obstacle.counted = true;
+          this.obstaclesPassed += 1;
+          this.score += 18;
+          if (this.obstaclesPassed >= this.obstaclesForGate) this.openQuizGate();
+        }
+        if (!obstacle.hit && rectsOverlap(playerBox, obstacle)) {
+          obstacle.hit = true;
+          this.handleObstacleHit(obstacle);
+        }
+      });
+
+      this.obstacles = this.obstacles.filter((obstacle) => obstacle.x > -140 && !obstacle.remove);
     }
 
-    load() {
-      const raw = localStorage.getItem("dinoQuestSave");
-      if (!raw) {
-        this.ui.showToast("No saved run found.");
-        return false;
+    updateCollectibles(dt, runSpeed) {
+      const playerBox = { x: this.dino.x, y: this.dino.y, w: this.dino.w, h: this.dino.h };
+      this.collectibles.forEach((item) => {
+        item.x -= runSpeed * dt;
+        if (circleRectOverlap(item, playerBox)) {
+          this.applyCollectible(item);
+          item.remove = true;
+        }
+      });
+      this.collectibles = this.collectibles.filter((item) => item.x > -80 && !item.remove);
+    }
+
+    updateParticles(dt) {
+      this.particles.forEach((particle) => {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vy += 520 * dt;
+        particle.life -= dt * particle.decay;
+      });
+      this.particles = this.particles.filter((particle) => particle.life > 0);
+    }
+
+    spawnPattern() {
+      const level = this.level;
+      const gap = clamp(1.1 - level * 0.055, 0.58, 1.1);
+      const patternPool = level < 2
+        ? ["cactus", "rock"]
+        : level < 4
+          ? ["cactus", "rock", "bird", "double"]
+          : ["cactus", "rock", "bird", "double", "stagger", "lowHigh"];
+      const pattern = choice(patternPool);
+      const startX = this.width + rand(30, 120);
+
+      if (pattern === "double") {
+        this.addObstacle("cactus", startX, 0);
+        this.addObstacle("rock", startX + rand(74, 96), 0);
+      } else if (pattern === "stagger") {
+        this.addObstacle("rock", startX, 0);
+        this.addObstacle("bird", startX + rand(125, 160), -rand(80, 125));
+      } else if (pattern === "lowHigh") {
+        this.addObstacle("bird", startX, -rand(55, 85));
+        this.addObstacle("cactus", startX + rand(132, 176), 0);
+      } else {
+        this.addObstacle(pattern, startX, pattern === "bird" ? -rand(70, 132) : 0);
       }
+
+      if (Math.random() < 0.7) this.spawnCoinArc(startX + rand(70, 150));
+      if (Math.random() < 0.17) this.spawnPowerup(startX + rand(210, 290));
+      this.spawnTimer = gap + rand(0.14, 0.35);
+    }
+
+    addObstacle(type, x, yOffset) {
+      const sizes = {
+        cactus: { w: randInt(28, 38), h: randInt(48, 68) },
+        rock: { w: randInt(36, 52), h: randInt(30, 42) },
+        bird: { w: 56, h: 30 }
+      };
+      const size = sizes[type];
+      const y = type === "bird" ? this.groundY - 85 + yOffset : this.groundY - size.h;
+      this.obstacles.push({ type, x, y, w: size.w, h: size.h, counted: false, hit: false });
+    }
+
+    spawnCoinArc(x) {
+      const count = randInt(3, 5);
+      for (let i = 0; i < count; i += 1) {
+        this.collectibles.push({
+          kind: "coin",
+          x: x + i * 28,
+          y: this.groundY - 90 - Math.sin(i / Math.max(1, count - 1) * Math.PI) * 48,
+          r: 10,
+          remove: false
+        });
+      }
+    }
+
+    spawnPowerup(x) {
+      this.collectibles.push({
+        kind: choice(["shield", "slow", "heart"]),
+        x,
+        y: this.groundY - rand(118, 170),
+        r: 13,
+        remove: false
+      });
+    }
+
+    applyCollectible(item) {
+      if (item.kind === "coin") {
+        this.score += 10;
+        this.audio.collect();
+        this.emitDust(item.x, item.y, "#ffd166", 7);
+      } else if (item.kind === "shield") {
+        this.dino.shield = 7;
+        this.score += 30;
+        this.audio.power();
+        this.ui.setStatus("Shield active.");
+      } else if (item.kind === "slow") {
+        this.dino.slow = 5.5;
+        this.score += 30;
+        this.audio.power();
+        this.ui.setStatus("Time boost active.");
+      } else if (item.kind === "heart") {
+        this.lives = Math.min(5, this.lives + 1);
+        this.score += 35;
+        this.audio.power();
+        this.ui.setStatus("Extra life collected.");
+      }
+    }
+
+    handleObstacleHit(obstacle) {
+      if (this.dino.dash > 0 || this.dino.shield > 0) {
+        obstacle.remove = true;
+        this.dino.shield = Math.max(0, this.dino.shield - 2);
+        this.score += 14;
+        this.emitDust(obstacle.x + obstacle.w / 2, obstacle.y + obstacle.h / 2, "#7df29c", 18);
+        this.audio.power();
+        return;
+      }
+      if (this.dino.invulnerable > 0) return;
+      this.lives -= 1;
+      this.dino.invulnerable = 1.4;
+      obstacle.remove = true;
+      this.emitDust(this.dino.x + 30, this.dino.y + 35, "#ff5d7d", 22);
+      this.audio.hit();
+      this.ui.setStatus("Ouch. One life lost.");
+      if (this.lives <= 0) this.end(false);
+    }
+
+    openQuizGate() {
+      if (this.state !== "playing") return;
+      this.state = "quiz";
+      this.obstaclesPassed = 0;
+      this.obstacles = [];
+      this.collectibles = [];
+      this.currentQuestion = this.questions.next(this.level);
+      this.ui.showQuiz(this.currentQuestion, this.level);
+    }
+
+    submitQuizAnswer(answer) {
+      if (this.state !== "quiz" || !this.currentQuestion) return;
+      const correct = this.questions.check(this.currentQuestion, answer);
+      if (correct) {
+        this.score += 120 + this.level * 30;
+        this.level += 1;
+        this.speed = Math.min(520, this.speed + 24);
+        this.obstaclesForGate = Math.min(7, 3 + Math.ceil(this.level / 2));
+        this.audio.correct();
+        this.emitDust(this.dino.x + 35, this.dino.y + 10, "#7df29c", 24);
+        this.ui.showQuizFeedback(`Correct. ${this.currentQuestion.explanation}`, true);
+        setTimeout(() => {
+          if (this.level > this.maxLevel) this.end(true);
+          else this.resumeAfterQuiz("Stage unlocked. Speed increased.");
+        }, 1200);
+      } else {
+        this.lives -= 1;
+        this.audio.wrong();
+        this.ui.showQuizFeedback(`Not quite. ${this.currentQuestion.explanation}`, false);
+        setTimeout(() => {
+          if (this.lives <= 0) this.end(false);
+          else this.resumeAfterQuiz("Wrong answer. One life lost, but the gate opens.");
+        }, 1300);
+      }
+      this.highScore = Math.max(this.highScore, Math.floor(this.score));
+      localStorage.setItem("dinoQuestHighScore", String(this.highScore));
+      this.ui.updateHud(this);
+    }
+
+    resumeAfterQuiz(message) {
+      this.currentQuestion = null;
+      this.spawnTimer = 0.8;
+      this.state = "playing";
+      this.ui.hideOverlays();
+      this.ui.setStatus(message);
+      this.ui.updateHud(this);
+    }
+
+    progressRatio() {
+      return clamp(this.obstaclesPassed / this.obstaclesForGate, 0, 1);
+    }
+
+    emitDust(x, y, color, count) {
+      for (let i = 0; i < count; i += 1) {
+        this.particles.push({
+          x,
+          y,
+          vx: rand(-155, 115),
+          vy: rand(-260, -40),
+          r: rand(1.5, 4.2),
+          color,
+          life: rand(0.42, 1),
+          decay: rand(1.3, 2.4)
+        });
+      }
+    }
+
+    draw() {
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.width, this.height);
+      Assets.drawBackground(ctx, this);
+      this.collectibles.forEach((item) => Assets.drawCollectible(ctx, item, this.worldTime));
+      this.obstacles.forEach((obstacle) => Assets.drawObstacle(ctx, obstacle, this.worldTime));
+      Assets.drawParticles(ctx, this.particles);
+      Assets.drawDino(ctx, this.dino, this.worldTime);
+
+      if (this.dino.slow > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.13;
+        ctx.fillStyle = "#52e0ff";
+        ctx.fillRect(0, 0, this.width, this.height);
+        ctx.restore();
+      }
+    }
+
+    end(won) {
+      this.state = "over";
+      this.saveLeaderboard();
+      this.ui.updateHud(this);
+      this.ui.showGameOver(this, won);
+      if (!won) this.audio.wrong();
+    }
+
+    loadLeaderboard() {
       try {
-        const data = JSON.parse(raw);
-        this.player = new DinoQuest.Player(this.tileSize);
-        this.newLevel(data.level || 1, true);
-        this.player.restore(data.player);
-        this.player.respawn();
-        this.state = "playing";
-        this.ui.hideStart();
-        this.ui.updateHud(this);
-        this.ui.showToast("Run loaded.");
-        return true;
+        return JSON.parse(localStorage.getItem("dinoQuestLeaderboard") || "[]");
       } catch (error) {
-        console.error(error);
-        this.ui.showToast("Save file could not be loaded.");
-        return false;
+        return [];
       }
+    }
+
+    saveLeaderboard() {
+      const entry = {
+        score: Math.floor(this.score),
+        level: this.level,
+        date: new Date().toLocaleDateString()
+      };
+      this.leaderboard = [entry, ...this.loadLeaderboard()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      localStorage.setItem("dinoQuestLeaderboard", JSON.stringify(this.leaderboard));
+    }
+
+    showMenu() {
+      this.state = "menu";
+      this.resetWorld();
+      this.ui.showStart();
     }
   }
 

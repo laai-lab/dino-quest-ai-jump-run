@@ -5,59 +5,65 @@
 
   class AudioManager {
     constructor() {
-      this.context = null;
       this.enabled = true;
-      this.master = null;
+      this.ctx = null;
     }
 
     ensure() {
-      if (!this.context) {
+      if (!this.ctx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        this.context = new AudioContext();
-        this.master = this.context.createGain();
-        this.master.gain.value = 0.08;
-        this.master.connect(this.context.destination);
+        if (AudioContext) this.ctx = new AudioContext();
       }
-      if (this.context.state === "suspended") {
-        this.context.resume();
-      }
+      if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
     }
 
     setEnabled(enabled) {
       this.enabled = enabled;
-      if (this.master) {
-        this.master.gain.value = enabled ? 0.08 : 0;
-      }
     }
 
-    beep(type) {
+    beep(type, frequency, duration, volume) {
       if (!this.enabled) return;
       this.ensure();
-      if (!this.context || !this.master) return;
-      const now = this.context.currentTime;
-      const osc = this.context.createOscillator();
-      const gain = this.context.createGain();
-      const notes = {
-        coin: [880, 1175, 0.08],
-        hurt: [160, 90, 0.16],
-        correct: [523, 784, 0.14],
-        wrong: [220, 165, 0.18],
-        battle: [330, 196, 0.2],
-        win: [659, 988, 0.22],
-        checkpoint: [392, 659, 0.16]
-      };
-      const [start, end, length] = notes[type] || notes.coin;
-      osc.type = type === "hurt" || type === "wrong" ? "sawtooth" : "square";
-      osc.frequency.setValueAtTime(start, now);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(40, end), now + length);
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.exponentialRampToValueAtTime(0.45, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + length);
-      osc.connect(gain);
-      gain.connect(this.master);
-      osc.start(now);
-      osc.stop(now + length + 0.02);
+      if (!this.ctx) return;
+      const oscillator = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      gain.gain.value = volume;
+      oscillator.connect(gain);
+      gain.connect(this.ctx.destination);
+      oscillator.start();
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      oscillator.stop(this.ctx.currentTime + duration);
+    }
+
+    jump() {
+      this.beep("triangle", 620, 0.08, 0.08);
+    }
+
+    dash() {
+      this.beep("sawtooth", 230, 0.09, 0.09);
+    }
+
+    collect() {
+      this.beep("sine", 940, 0.05, 0.07);
+    }
+
+    power() {
+      this.beep("square", 520, 0.1, 0.09);
+    }
+
+    correct() {
+      this.beep("triangle", 760, 0.1, 0.1);
+      setTimeout(() => this.beep("triangle", 980, 0.1, 0.08), 90);
+    }
+
+    wrong() {
+      this.beep("sawtooth", 150, 0.18, 0.1);
+    }
+
+    hit() {
+      this.beep("square", 110, 0.12, 0.09);
     }
   }
 

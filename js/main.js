@@ -5,23 +5,33 @@
   const ui = new window.DinoQuest.UI();
   const game = new window.DinoQuest.Game(canvas, ui);
 
-  document.getElementById("newGameBtn").addEventListener("click", () => game.startNewGame());
-  document.getElementById("continueBtn").addEventListener("click", () => game.load());
-  document.getElementById("restartBtn").addEventListener("click", () => game.startNewGame());
-  document.getElementById("saveBtn").addEventListener("click", () => {
-    game.audio.ensure();
-    game.save();
-    ui.showToast("Quest saved.");
+  document.getElementById("startBtn").addEventListener("click", () => game.start());
+  document.getElementById("restartBtn").addEventListener("click", () => game.start());
+  document.getElementById("menuBtn").addEventListener("click", () => game.showMenu());
+  document.getElementById("pauseBtn").addEventListener("click", () => game.togglePause());
+  document.getElementById("resumeBtn").addEventListener("click", () => game.togglePause());
+  document.getElementById("restartFromPauseBtn").addEventListener("click", () => game.start());
+  document.getElementById("jumpBtn").addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    game.jump();
   });
-  document.getElementById("loadBtn").addEventListener("click", () => {
-    game.audio.ensure();
-    game.load();
+  document.getElementById("dashBtn").addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    game.dash();
+  });
+  document.getElementById("howBtn").addEventListener("click", () => {
+    const help = document.getElementById("controlHelp");
+    help.hidden = !help.hidden;
   });
   document.getElementById("muteBtn").addEventListener("click", (event) => {
-    const enabled = event.currentTarget.getAttribute("aria-pressed") !== "true";
-    event.currentTarget.setAttribute("aria-pressed", String(enabled));
-    event.currentTarget.textContent = enabled ? "Muted" : "Sound";
-    game.audio.setEnabled(!enabled);
+    const muted = event.currentTarget.getAttribute("aria-pressed") === "true";
+    event.currentTarget.setAttribute("aria-pressed", String(!muted));
+    event.currentTarget.textContent = muted ? "Sound" : "Muted";
+    game.audio.setEnabled(muted);
+  });
+  document.getElementById("quizForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    game.submitQuizAnswer(ui.readQuizAnswer());
   });
 
   game.boot();

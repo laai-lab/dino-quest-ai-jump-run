@@ -2,72 +2,31 @@
   "use strict";
 
   const DinoQuest = window.DinoQuest || (window.DinoQuest = {});
-  const { normalizeAnswer, shuffle } = DinoQuest.Utils;
+  const { shuffle } = DinoQuest.Utils;
 
   class QuestionEngine {
-    constructor() {
-      this.questions = [];
+    constructor(questions) {
+      this.questions = questions || window.DINO_QUEST_QUESTIONS || [];
       this.used = new Set();
     }
 
-    async load() {
-      this.questions = (window.DINO_QUEST_QUESTIONS && window.DINO_QUEST_QUESTIONS.questions) || [];
-      if (location.protocol !== "file:") {
-        try {
-          const response = await fetch("data/questions.json", { cache: "no-store" });
-          if (response.ok) {
-            const json = await response.json();
-            if (Array.isArray(json.questions) && json.questions.length) {
-              this.questions = json.questions;
-            }
-          }
-        } catch (error) {
-          console.warn("Using bundled question data.", error);
-        }
-      }
-      return this.questions;
-    }
-
-    getQuestion(topic, level, typeHint) {
-      const desiredDifficulty = Math.min(5, Math.max(1, Math.ceil(level)));
-      const isUsable = (question) => question.difficulty <= desiredDifficulty + 1 && !this.used.has(question.id);
-      const typeMatches = (question) => !typeHint || question.type === typeHint;
-      const pools = [
-        this.questions.filter((question) => question.topic === topic && typeMatches(question) && isUsable(question)),
-        this.questions.filter((question) => question.topic === topic && isUsable(question)),
-        this.questions.filter((question) => typeMatches(question) && isUsable(question)),
-        this.questions.filter(isUsable)
-      ];
-      let pool = pools.find((items) => items.length > 0) || [];
-
-      if (!pool.length && this.used.size) {
+    next(level) {
+      const maxDifficulty = Math.min(3, Math.max(1, Math.ceil(level / 2)));
+      let pool = this.questions.filter((question) => question.difficulty <= maxDifficulty && !this.used.has(question.question));
+      if (pool.length === 0) {
         this.used.clear();
-        pool = this.questions.filter((question) => question.difficulty <= desiredDifficulty + 1);
+        pool = this.questions.filter((question) => question.difficulty <= maxDifficulty);
       }
-
-      const question = shuffle(pool)[0] || this.questions[0];
-      if (question) this.used.add(question.id);
-      return question;
-    }
-
-    isCorrect(question, submitted) {
-      if (!question) return false;
-      if (question.type === "multiple-choice") {
-        return normalizeAnswer(submitted) === normalizeAnswer(question.answer);
-      }
-      const accepted = Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers : [question.answer];
-      const normalized = normalizeAnswer(submitted);
-      return accepted.some((answer) => normalizeAnswer(answer) === normalized);
-    }
-
-    formatType(type) {
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      this.used.add(picked.question);
       return {
-        "multiple-choice": "Multiple Choice",
-        "code-completion": "Code Completion",
-        debugging: "Debugging",
-        sql: "SQL Query",
-        "output-prediction": "Output Prediction"
-      }[type] || "Challenge";
+        ...picked,
+        options: shuffle(picked.options)
+      };
+    }
+
+    check(question, answer) {
+      return String(answer).trim().toLowerCase() === String(question.answer).trim().toLowerCase();
     }
   }
 

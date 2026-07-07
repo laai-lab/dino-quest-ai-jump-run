@@ -5,146 +5,117 @@
 
   class UI {
     constructor() {
-      this.healthText = document.getElementById("healthText");
-      this.healthBar = document.getElementById("healthBar");
-      this.xpText = document.getElementById("xpText");
-      this.coinsText = document.getElementById("coinsText");
       this.scoreText = document.getElementById("scoreText");
+      this.highScoreText = document.getElementById("highScoreText");
+      this.livesText = document.getElementById("livesText");
       this.levelText = document.getElementById("levelText");
+      this.progressFill = document.getElementById("progressFill");
       this.statusText = document.getElementById("statusText");
-      this.toast = document.getElementById("toast");
       this.startScreen = document.getElementById("startScreen");
-      this.endScreen = document.getElementById("endScreen");
+      this.pauseScreen = document.getElementById("pauseScreen");
+      this.quizScreen = document.getElementById("quizScreen");
+      this.gameOverScreen = document.getElementById("gameOverScreen");
+      this.quizForm = document.getElementById("quizForm");
+      this.quizSubject = document.getElementById("quizSubject");
+      this.quizLevel = document.getElementById("quizLevel");
+      this.quizQuestion = document.getElementById("quizQuestion");
+      this.quizOptions = document.getElementById("quizOptions");
+      this.quizFeedback = document.getElementById("quizFeedback");
+      this.submitQuizBtn = document.getElementById("submitQuizBtn");
+      this.endEyebrow = document.getElementById("endEyebrow");
       this.endTitle = document.getElementById("endTitle");
       this.endMessage = document.getElementById("endMessage");
-      this.battlePanel = document.getElementById("battlePanel");
-      this.battleTopic = document.getElementById("battleTopic");
-      this.battleTitle = document.getElementById("battleTitle");
-      this.battleTimer = document.getElementById("battleTimer");
-      this.enemyName = document.getElementById("enemyName");
-      this.enemyHealthBar = document.getElementById("enemyHealthBar");
-      this.dinoBattleHealthBar = document.getElementById("dinoBattleHealthBar");
-      this.battleProgress = document.getElementById("battleProgress");
-      this.questionType = document.getElementById("questionType");
-      this.questionDifficulty = document.getElementById("questionDifficulty");
-      this.questionPrompt = document.getElementById("questionPrompt");
-      this.answerForm = document.getElementById("answerForm");
-      this.answerOptions = document.getElementById("answerOptions");
-      this.freeAnswerWrap = document.getElementById("freeAnswerWrap");
-      this.freeAnswer = document.getElementById("freeAnswer");
-      this.submitAnswerBtn = document.getElementById("submitAnswerBtn");
-      this.battleFeedback = document.getElementById("battleFeedback");
-      this.toastTimer = 0;
+      this.leaderboardList = document.getElementById("leaderboardList");
     }
 
     updateHud(game) {
-      const player = game.player;
-      const healthPct = Math.max(0, Math.round((player.health / player.maxHealth) * 100));
-      this.healthText.textContent = `${Math.ceil(player.health)} / ${player.maxHealth}`;
-      this.healthBar.style.width = `${healthPct}%`;
-      this.xpText.textContent = player.xp;
-      this.coinsText.textContent = player.coins;
-      this.scoreText.textContent = player.score;
+      this.scoreText.textContent = Math.floor(game.score);
+      this.highScoreText.textContent = game.highScore;
+      this.livesText.textContent = `x ${Math.max(0, game.lives)}`;
       this.levelText.textContent = game.level;
+      this.progressFill.style.width = `${Math.round(game.progressRatio() * 100)}%`;
     }
 
     setStatus(text) {
       this.statusText.textContent = text;
     }
 
-    showToast(text) {
-      this.toast.textContent = text;
-      this.toast.classList.add("is-visible");
-      clearTimeout(this.toastTimer);
-      this.toastTimer = setTimeout(() => this.toast.classList.remove("is-visible"), 1900);
+    showOnly(screen) {
+      [this.startScreen, this.pauseScreen, this.quizScreen, this.gameOverScreen].forEach((item) => {
+        const visible = item === screen;
+        item.classList.toggle("is-visible", visible);
+        item.setAttribute("aria-hidden", String(!visible));
+      });
+    }
+
+    hideOverlays() {
+      this.showOnly(null);
     }
 
     showStart() {
-      this.startScreen.classList.add("is-visible");
-      this.endScreen.classList.remove("is-visible");
+      this.showOnly(this.startScreen);
+      this.setStatus("Ready.");
     }
 
-    hideStart() {
-      this.startScreen.classList.remove("is-visible");
-      this.endScreen.classList.remove("is-visible");
+    showPause() {
+      this.showOnly(this.pauseScreen);
+      this.setStatus("Paused.");
     }
 
-    showEnd(title, message) {
-      this.endTitle.textContent = title;
-      this.endMessage.textContent = message;
-      this.endScreen.classList.add("is-visible");
+    showQuiz(question, level) {
+      this.showOnly(this.quizScreen);
+      this.quizSubject.textContent = question.subject;
+      this.quizLevel.textContent = `Level ${level}`;
+      this.quizQuestion.textContent = question.question;
+      this.quizFeedback.textContent = "";
+      this.submitQuizBtn.disabled = false;
+      this.quizOptions.innerHTML = "";
+      question.options.forEach((option, index) => {
+        const id = `quiz-option-${index}`;
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        const span = document.createElement("span");
+        input.type = "radio";
+        input.name = "answer";
+        input.id = id;
+        input.value = option;
+        if (index === 0) input.checked = true;
+        span.textContent = option;
+        label.setAttribute("for", id);
+        label.append(input, span);
+        this.quizOptions.append(label);
+      });
+      this.setStatus("Knowledge gate opened.");
     }
 
-    showBattle(enemy, totalQuestions) {
-      this.battlePanel.classList.add("is-visible");
-      this.battlePanel.setAttribute("aria-hidden", "false");
-      this.battleTopic.textContent = enemy.topic;
-      this.battleTitle.textContent = enemy.isBoss ? "Boss Knowledge Gate" : "AI Bot Encounter";
-      this.enemyName.textContent = enemy.name;
-      this.battleProgress.textContent = `Question 1 / ${totalQuestions}`;
-      this.battleFeedback.textContent = "";
+    readQuizAnswer() {
+      const checked = this.quizOptions.querySelector("input:checked");
+      return checked ? checked.value : "";
     }
 
-    hideBattle() {
-      this.battlePanel.classList.remove("is-visible");
-      this.battlePanel.setAttribute("aria-hidden", "true");
-      this.battleFeedback.textContent = "";
+    showQuizFeedback(text, good) {
+      this.quizFeedback.textContent = text;
+      this.quizFeedback.style.color = good ? "#7df29c" : "#ff8aa3";
+      this.submitQuizBtn.disabled = true;
     }
 
-    renderQuestion(question, index, total, enemy, player, questionEngine) {
-      this.battleProgress.textContent = `Question ${index} / ${total}`;
-      this.questionType.textContent = questionEngine.formatType(question.type);
-      this.questionDifficulty.textContent = `Difficulty ${question.difficulty}`;
-      this.questionPrompt.textContent = question.prompt;
-      this.battleFeedback.textContent = "";
-      this.enemyHealthBar.style.width = `${Math.max(0, (enemy.health / enemy.maxHealth) * 100)}%`;
-      this.dinoBattleHealthBar.style.width = `${Math.max(0, (player.health / player.maxHealth) * 100)}%`;
-      this.answerOptions.innerHTML = "";
-      this.freeAnswer.value = "";
-
-      if (question.type === "multiple-choice") {
-        this.freeAnswerWrap.style.display = "none";
-        this.answerOptions.style.display = "grid";
-        question.options.forEach((option, index) => {
-          const id = `answer-${index}`;
-          const label = document.createElement("label");
-          label.setAttribute("for", id);
-          const input = document.createElement("input");
-          input.type = "radio";
-          input.name = "answer";
-          input.id = id;
-          input.value = option;
-          if (index === 0) input.checked = true;
-          const span = document.createElement("span");
-          span.textContent = option;
-          label.append(input, span);
-          this.answerOptions.append(label);
-        });
-      } else {
-        this.freeAnswerWrap.style.display = "grid";
-        this.answerOptions.style.display = "none";
-        this.freeAnswer.placeholder = question.placeholder || "Type the exact missing code, query, output, or fix.";
-        setTimeout(() => this.freeAnswer.focus(), 30);
-      }
+    showGameOver(game, won) {
+      this.showOnly(this.gameOverScreen);
+      this.endEyebrow.textContent = won ? "Quest Complete" : "Run Ended";
+      this.endTitle.textContent = won ? "You Cleared Dino Quest!" : "Game Over";
+      this.endMessage.textContent = `Score ${Math.floor(game.score)} | Level ${game.level} | Best ${game.highScore}`;
+      this.renderLeaderboard(game.leaderboard);
+      this.setStatus(won ? "Quest complete." : "Run ended.");
     }
 
-    readAnswer(question) {
-      if (question.type === "multiple-choice") {
-        const checked = this.answerOptions.querySelector("input:checked");
-        return checked ? checked.value : "";
-      }
-      return this.freeAnswer.value;
-    }
-
-    updateBattleTimer(seconds, enemy, player) {
-      this.battleTimer.textContent = seconds;
-      this.enemyHealthBar.style.width = `${Math.max(0, (enemy.health / enemy.maxHealth) * 100)}%`;
-      this.dinoBattleHealthBar.style.width = `${Math.max(0, (player.health / player.maxHealth) * 100)}%`;
-    }
-
-    flashBattleFeedback(text, good) {
-      this.battleFeedback.textContent = text;
-      this.battleFeedback.style.color = good ? "#1f7a55" : "#b42318";
+    renderLeaderboard(entries) {
+      this.leaderboardList.innerHTML = "";
+      const list = entries.length ? entries : [{ score: 0, level: 1, date: "No runs yet" }];
+      list.forEach((entry) => {
+        const li = document.createElement("li");
+        li.textContent = `${entry.score} points | Level ${entry.level} | ${entry.date}`;
+        this.leaderboardList.append(li);
+      });
     }
   }
 
